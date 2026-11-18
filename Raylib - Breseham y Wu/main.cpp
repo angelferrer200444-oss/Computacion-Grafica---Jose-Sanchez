@@ -48,18 +48,19 @@ int main()
         }
         
         BeginDrawing();
-            ClearBackground(BLACK);
-
             if (escena == 0) 
             {
+                ClearBackground(BLACK);
                 crearVerticesTriangulo(posTriangulo, alturaTriangulo, baseTriangulo);
             } 
             else if (escena == 1) 
             {
+                ClearBackground(DARKBLUE);
                 crearVerticesHexagono(centroPantalla, radioHexagono); 
             }
             else if (escena == 2) 
             {
+                ClearBackground(WHITE);
                 crearVerticesCuadrilateroConcavo(centroPantalla, anchoDardo, altoDardo);
             }
         EndDrawing();
@@ -68,3 +69,4 @@ int main()
     CloseWindow();
     return 0;
 }
+
