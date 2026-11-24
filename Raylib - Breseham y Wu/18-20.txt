@@ -1,0 +1,2 @@
+Observacion: Tus funciones no devuelven un arreglo de Puntos si no 
+que dibujan la linea. Yo pedí que devolvieran el arreglo de Puntos.
