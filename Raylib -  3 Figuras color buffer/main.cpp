@@ -108,7 +108,6 @@ void finalizarFrentePendiente(Image *triangulo, Image *hexagono, Image *cuadrila
         ImageDrawPixel(figura, (int)puntos[i].x, (int)puntos[i].y, colorDefinitivo);
 }
 
-// Crea una máscara que identifica los píxeles interiores de una figura.
 void crearMascara(Image original, int x, int y, unsigned char mascara[], Punto puntos[], int &cantidad)
 {
     for (int i = 0; i < original.width * original.height; i++)
@@ -119,7 +118,6 @@ void crearMascara(Image original, int x, int y, unsigned char mascara[], Punto p
     Image imagenTrabajo = GenImageColor(original.width, original.height, BLACK);
     combinarImagen(&imagenTrabajo, original, 0, 0);
 
-    // Utilizamos Flood Fill para obtener los píxeles interiores.
     floodFill(&imagenTrabajo, x, y, puntos, cantidad);
 
     for (int i = 0; i < cantidad; i++)
@@ -133,34 +131,21 @@ void crearMascara(Image original, int x, int y, unsigned char mascara[], Punto p
     UnloadImage(imagenTrabajo);
 }
 
-// Reinicia la animación de la escena combinada.
-void iniciarRellenoUnion(Image *imagenUnion, Color coloresDefinitivos[], int &indice, bool &animando, bool &frentePendiente)
+void iniciarRellenoUnion(Image *imagenUnion, int cantidadUnion, int &indice, bool &animando, bool &frentePendiente)
 {
     Color transparente = { 0, 0, 0, 0 };
 
     ImageClearBackground(imagenUnion, transparente);
 
-    for (int i = 0; i < imagenUnion->width * imagenUnion->height; i++)
-        coloresDefinitivos[i] = transparente;
-
     indice = 0;
-    animando = true;
+    animando = (cantidadUnion > 0);
     frentePendiente = false;
 }
 
-// Convierte el frente temporal anterior en sus colores definitivos.
-void finalizarFrenteUnion(Image *imagenUnion, Color coloresDefinitivos[], int inicio, int fin, int ancho)
+void finalizarFrenteUnion(Image *imagenUnion, Punto puntosUnion[], Color coloresDefinitivos[], int inicio, int fin)
 {
     for (int i = inicio; i < fin; i++)
-    {
-        if (coloresDefinitivos[i].a > 0)
-        {
-            int x = i % ancho;
-            int y = i / ancho;
-
-            ImageDrawPixel(imagenUnion, x, y, coloresDefinitivos[i]);
-        }
-    }
+        ImageDrawPixel(imagenUnion, (int)puntosUnion[i].x, (int)puntosUnion[i].y, coloresDefinitivos[i]);
 }
 
 int main()
@@ -222,10 +207,6 @@ int main()
 
     Image imagenCuadrilateroOriginal = ImageCopy(imagenCuadrilatero);
 
-    // -------------------------------------------------
-    // MÁSCARAS DE LAS TRES FIGURAS
-    // -------------------------------------------------
-
     static unsigned char mascaraTriangulo[800 * 450];
     static unsigned char mascaraHexagono[800 * 450];
     static unsigned char mascaraCuadrilatero[800 * 450];
@@ -236,10 +217,6 @@ int main()
     crearMascara(imagenTrianguloOriginal, 400, 200, mascaraTriangulo, puntosMascara, cantidadMascara);
     crearMascara(imagenHexagonoOriginal, 400, 225, mascaraHexagono, puntosMascara, cantidadMascara);
     crearMascara(imagenCuadrilateroOriginal, 400, 225, mascaraCuadrilatero, puntosMascara, cantidadMascara);
-
-    // -------------------------------------------------
-    // CONFIGURACIÓN DE LAS ESCENAS INDIVIDUALES
-    // -------------------------------------------------
 
     int escena = 0;
     int algoritmosRelleno[3] = { rand() % 2, rand() % 2, rand() % 2 };
@@ -265,18 +242,58 @@ int main()
 
     iniciarRelleno(&imagenTriangulo, imagenTrianguloOriginal, 400, 200, algoritmosRelleno[0], puntosRelleno, cantidadRelleno, indiceRelleno, animandoRelleno);
 
-    // -------------------------------------------------
-    // CONFIGURACIÓN DE LA ESCENA COMBINADA
-    // -------------------------------------------------
-
     Color colorA = ORANGE;
     Color colorB = BLUE;
     Color colorC = PURPLE;
     Color colorTemporalUnion = YELLOW;
 
-    static Color coloresDefinitivos[800 * 450];
+    static Punto puntosUnion[MAX_COLA];
+    static Color coloresDefinitivos[MAX_COLA];
+    int cantidadUnion = 0;
 
-    const int PIXELES_UNION = 2000;
+    for (int y = 0; y < ALTO; y++)
+    {
+        for (int x = 0; x < ANCHO; x++)
+        {
+            int coincidencias = 0;
+
+            int tx = x + 35;
+            int ty = y + 15;
+
+            if (tx >= 0 && tx < ANCHO && ty >= 0 && ty < ALTO && mascaraTriangulo[ty * ANCHO + tx])
+                coincidencias++;
+
+            int hx = x - 35;
+            int hy = y + 10;
+
+            if (hx >= 0 && hx < ANCHO && hy >= 0 && hy < ALTO && mascaraHexagono[hy * ANCHO + hx])
+                coincidencias++;
+
+            int qx = x;
+            int qy = y - 25;
+
+            if (qx >= 0 && qx < ANCHO && qy >= 0 && qy < ALTO && mascaraCuadrilatero[qy * ANCHO + qx])
+                coincidencias++;
+
+            if (coincidencias > 0 && cantidadUnion < MAX_COLA)
+            {
+                puntosUnion[cantidadUnion].x = (float)x;
+                puntosUnion[cantidadUnion].y = (float)y;
+                puntosUnion[cantidadUnion].alpha = 1.0f;
+
+                if (coincidencias == 1)
+                    coloresDefinitivos[cantidadUnion] = colorA;
+                else if (coincidencias == 2)
+                    coloresDefinitivos[cantidadUnion] = colorB;
+                else
+                    coloresDefinitivos[cantidadUnion] = colorC;
+
+                cantidadUnion++;
+            }
+        }
+    }
+
+    const int PIXELES_UNION = 250;
 
     int indiceUnion = 0;
     int inicioFrenteUnion = 0;
@@ -311,17 +328,15 @@ int main()
 
         if (cambioEscena)
         {
-            // Finalizar el frente pendiente de las figuras individuales.
             if (frentePendiente)
             {
                 finalizarFrentePendiente(&imagenTriangulo, &imagenHexagono, &imagenCuadrilatero, puntosRelleno, inicioFrente, finFrente, escenaFrente);
                 frentePendiente = false;
             }
 
-            // Finalizar el frente pendiente de la escena combinada.
             if (frentePendienteUnion)
             {
-                finalizarFrenteUnion(&imagenUnion, coloresDefinitivos, inicioFrenteUnion, finFrenteUnion, ANCHO);
+                finalizarFrenteUnion(&imagenUnion, puntosUnion, coloresDefinitivos, inicioFrenteUnion, finFrenteUnion);
                 frentePendienteUnion = false;
             }
 
@@ -344,11 +359,10 @@ int main()
             {
                 animandoRelleno = false;
 
-                iniciarRellenoUnion(&imagenUnion, coloresDefinitivos, indiceUnion, animandoUnion, frentePendienteUnion);
+                iniciarRellenoUnion(&imagenUnion, cantidadUnion, indiceUnion, animandoUnion, frentePendienteUnion);
             }
         }
 
-        // Cambiar el algoritmo de relleno en las escenas individuales.
         if (IsKeyPressed(KEY_R) && escena < 3)
         {
             if (frentePendiente)
@@ -368,10 +382,6 @@ int main()
             else if (escena == 2)
                 iniciarRelleno(&imagenCuadrilatero, imagenCuadrilateroOriginal, 400, 225, algoritmosRelleno[2], puntosRelleno, cantidadRelleno, indiceRelleno, animandoRelleno);
         }
-
-        // -------------------------------------------------
-        // ANIMACIÓN DE LAS ESCENAS INDIVIDUALES
-        // -------------------------------------------------
 
         if (animandoRelleno || frentePendiente)
         {
@@ -422,16 +432,11 @@ int main()
             }
         }
 
-        // -------------------------------------------------
-        // ANIMACIÓN DE LA UNIÓN E INTERSECCIONES
-        // -------------------------------------------------
-
         if (escena == 3)
         {
-            // Convertir el frente anterior a sus colores definitivos.
             if (frentePendienteUnion)
             {
-                finalizarFrenteUnion(&imagenUnion, coloresDefinitivos, inicioFrenteUnion, finFrenteUnion, ANCHO);
+                finalizarFrenteUnion(&imagenUnion, puntosUnion, coloresDefinitivos, inicioFrenteUnion, finFrenteUnion);
                 frentePendienteUnion = false;
             }
 
@@ -439,71 +444,19 @@ int main()
             {
                 inicioFrenteUnion = indiceUnion;
 
-                for (int i = 0; i < PIXELES_UNION && indiceUnion < ANCHO * ALTO; i++)
+                for (int i = 0; i < PIXELES_UNION && indiceUnion < cantidadUnion; i++)
                 {
-                    int x = indiceUnion % ANCHO;
-                    int y = indiceUnion / ANCHO;
-
-                    int coincidencias = 0;
-
-                    // Desplazamiento del triángulo: (-35, -15).
-                    int tx = x + 35;
-                    int ty = y + 15;
-
-                    if (tx >= 0 && tx < ANCHO && ty >= 0 && ty < ALTO)
-                    {
-                        if (mascaraTriangulo[ty * ANCHO + tx])
-                            coincidencias++;
-                    }
-                    int hx = x - 35;
-                    int hy = y + 10;
-
-                    if (hx >= 0 && hx < ANCHO && hy >= 0 && hy < ALTO)
-                    {
-                        if (mascaraHexagono[hy * ANCHO + hx])
-                            coincidencias++;
-                    }
-
-                    // Desplazamiento del cuadrilátero: (0, 25).
-                    int qx = x;
-                    int qy = y - 25;
-
-                    if (qx >= 0 && qx < ANCHO && qy >= 0 && qy < ALTO)
-                    {
-                        if (mascaraCuadrilatero[qy * ANCHO + qx])
-                            coincidencias++;
-                    }
-
-                    Color colorDefinitivo;
-
-                    if (coincidencias == 1)
-                        colorDefinitivo = colorA;
-                    else if (coincidencias == 2)
-                        colorDefinitivo = colorB;
-                    else if (coincidencias == 3)
-                        colorDefinitivo = colorC;
-                    else
-                        colorDefinitivo = transparente;
-
-                    coloresDefinitivos[indiceUnion] = colorDefinitivo;
-
-                    if (coincidencias > 0)
-                        ImageDrawPixel(&imagenUnion, x, y, colorTemporalUnion);
-
+                    ImageDrawPixel(&imagenUnion, (int)puntosUnion[indiceUnion].x, (int)puntosUnion[indiceUnion].y, colorTemporalUnion);
                     indiceUnion++;
                 }
 
                 finFrenteUnion = indiceUnion;
                 frentePendienteUnion = (finFrenteUnion > inicioFrenteUnion);
 
-                if (indiceUnion >= ANCHO * ALTO)
+                if (indiceUnion >= cantidadUnion)
                     animandoUnion = false;
             }
         }
-
-        // -------------------------------------------------
-        // MOSTRAR ESCENAS
-        // -------------------------------------------------
 
         if (escena == 0)
         {
@@ -524,10 +477,8 @@ int main()
         {
             ImageClearBackground(&colorBuffer, BROWN);
 
-            // Primero se muestra el relleno clasificado.
             combinarImagen(&colorBuffer, imagenUnion, 0, 0);
 
-            // Después se dibujan los contornos originales encima.
             combinarImagen(&colorBuffer, imagenTrianguloOriginal, -35, -15);
             combinarImagen(&colorBuffer, imagenHexagonoOriginal, 35, -10);
             combinarImagen(&colorBuffer, imagenCuadrilateroOriginal, 0, 25);
