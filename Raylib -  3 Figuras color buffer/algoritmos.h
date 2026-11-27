@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define MAX_PUNTOS_LINEA 2000
+#define MAX_PUNTOS_LINEA 1000
 #define MAX_COLA 360000
 
 struct Punto
@@ -80,7 +80,6 @@ void lineaWu(float x1, float y1, float x2, float y2, Punto puntos[], int &cantid
 
     float gradient = (dx == 0.0f) ? 0.0f : dy / dx;
 
-    // Primer extremo
     float xend = (float)redondear(x1);
     float yend = y1 + gradient * (xend - x1);
 
@@ -313,4 +312,6 @@ void scanlineFill(Image *imagen, int xInicial, int yInicial, Punto puntos[], int
 
     UnloadImage(imagenTrabajo);
 }
+
+
 
